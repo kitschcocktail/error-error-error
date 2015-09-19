@@ -1,0 +1,159 @@
+\documentclass{article}
+\usepackage{graphicx}
+
+\begin{document}
+
+\title{Error Detection \& Error Correction}
+\author{KH}
+
+\maketitle
+
+%\begin{abstract}
+%The abstract text goes here.
+%\end{abstract}
+
+\section*{Dealing with Missing Data}
+Why ? Kalton and Kasprzyk: Reduce biases, when data is complete, allows for better results when analyzing it, and provides for more consistent results.\cite{poni}
+
+Types of approaches \cite{wu}:
+\begin{enumerate}
+	\item complete-case analysis (sampling-based, ignore incomplete cases): listwise deletion (LD), pairwise deletion
+	LD discards considerable amount of information, and may introduce bias, because they are no longer a random subsample of the original sample. This bias is misleading in that it performs well in terms of accuracy \cite{myrt}.
+	\item complete-case analysis (sampling-based): Imputation techniques
+	\item incomplete-case analysis (model-based): Missing data toleration techniques (probabilistic)
+	\item weighting techniques \cite{myrt}
+\end{enumerate}
+
+Wild values: values known to be untrue \cite{myrt}. Often, they are replaced by 'missing' values. Wild value is not an outlier.
+
+
+Twala: Listwise deletion is the worst, multiple imputation best. Improvement of prediction performance can also be seen when combining techniques by randomizing a decision tree building algorithm. 
+
+\section{Classification or Clustering}
+\section{Model-based Methods}
+Neither ignore nor replace. Rather, define a model for partially missing data, and base inferences on the likelihood under that model \cite{myrt}. 
+	\begin{itemize}
+		\item Classification And Regression Tree (CART)
+		\item C4.5
+		\item Full Information Maximum Likelihood method (FIML) \cite{myrt}
+	\end{itemize}
+
+\subsubsection{FIML}
+Able to analyse incomplete data sets directly. Assumes data comes from a multivariate normal distribution and maximizes the likelihood of the theoretical model given the observed data (based on principle of maximizing the log-likelihood). Also, is robust to data that do not comply completely with the multivariate normal distribution requirement. 
+
+Drawback: they require large data sets
+
+
+\section{Data Imputation}
+Replace missing values with suitable estimates, which allows for complete-data statistical methods to be applied. 
+Drawbacks: artificial values may cause bias \cite{myrt}. 
+
+Popular statistical imputation methods:
+\begin{itemize}
+	\item mean substitution: cell mean\cite{poni}, Average Window Size (AWS)\cite{jiang07}, mean imputation (MI)\cite{myrt}
+	\item imputations by regression: Ordinary Least Squares (OLS)\cite{myrt}, Iterative Stochastic Regression (ISRI)
+	\item hot deck imputation: nearest neighbor within-cell\cite{poni}, random within-cell\cite{poni}, Resemblance-based Hot Deck (RBHDI)
+	\item cold deck imputation
+	\item expectation maximization
+	\item maximum likelihood
+	use all of the available data points
+	\item multiple imputations
+	\item bayesian analysis
+	\item association rule mining : pattern growth\cite{wu}, Xminer\cite{wu}, Arotariel D\cite{wu}, rule recycling\cite{wu}, CARM\cite{jiang07}, Window Association Rule Mining (WARM)\cite{jiang07}
+	\item pattern discovery: Similar Response Pattern Imputation (SRPI) \cite{myrt}
+\end{itemize}
+
+
+Missing data may or may not miss at random (MAR). Some methods assume that they are. Missing Completeley at Random (MCAR). See \cite{myrt} for a moer detailed description of both MAR and MCAR. 
+
+\subsection{Mean Substitution}
+Variance will shrink, misleading frequency, long-tailed distribution \cite{myrt}.
+\subsubsection{Cell Mean}
+Take the mean of usables within same cell. Spike in conditional distribution of feature. Results in attenuation of covariances. Lower standard errorsSee \cite{poni}.
+
+
+\subsection{Regression}
+Predict unusables' values based on known aux variables. Close to actual data as it excludes outliers, and least costly to implement thanks to no explicit collapsing. See \cite{poni}.
+
+\cite{myrt} uses OLS, with log-log rather than linear because it better fulfilled the regression assumptions (i.e. homoscedasticity assumption), with residual analysis and outlier detection to better identify wild values. 
+
+
+\subsection{Multiple Imputation}
+Imputing several times which creates several complete, imputed data sets. \cite{myrt}
+
+
+\subsection{Association Rule Mining}
+The data imputation model using association rule mining on stream data based on
+closed frequent itemsets (CARM) [11] discovers relationships between sensors and
+use them to compensate for missing and corrupted data.\cite{jiang07}
+
+Support (usefulness) and condifidence (certainty) are two measures of interestingness for discovered rules. 
+\cite{wu} proposes an imputation method based on the weighted votes of association rules for missing discrete values.
+
+
+What not to do \cite{jiang07}:
+\begin{itemize}
+	\item use all old readings (not for WSN, all data may not all be related to available info)
+	\item use only previous round (b/c data streams often have a changing data distribution)
+\end{itemize}
+
+
+\subsubsection{CARM}
+CARM: (Closed Itemsets based Association Rule Mining)
+
+Uses an incremental method of deriving association rules basd on closed pattern mining, or relationships between the sensors, to then use the discovered rules to impute the missing values.
+
+DIU tree: stores and updates the data collected in the stream sliding window, checked by the CFI-Stream algorithm on the fly. Each node in the tree represents a closed itemset. 
+
+Performs well because it considers all relationship, not just neighbor nodes (like the regression methods do). Also, rules are derived from a compact and complete set of information, not just those derived by 2-frequent itemsets in current sliding window (like WARM does).
+
+CARM is slower than the other methods, though.
+
+\subsection{Hot Deck Imputation}
+Whenever possible, usables should be used as most once to minimize loss in precision \cite{poni}. Poni's evaluation reports highest standard errors.
+
+Draws from an estimated distribution for each missing value. \cite{myrt}
+
+
+\subsubsection{Random Within-Cell}
+Take from a randomly selected donor (usable) unit in same cell. Advantage: retains respondent distribution of quarter to quarter ratio of the characteristic within cell i. They also suggest a jackknife variance estimator, which is asymtotically unbiased, or a model-assisted approach for valid variance estimators. See \cite{poni}.
+
+\subsubsection{Nearest Neighbor Within-Cell}
+Take from closest donor (usable) unit within same cell. Allows for use of additional aux infor that may be highly correlated. See \cite{poni}.
+
+If cell has one of more unusables but no available usables, cell is collapsed with other similar cells according to the predetermined collapsing patterns until a usable donor is found \cite{poni}.
+
+\subsection{Pattern Imputation}
+\subsubsection{SRPI}
+Identify the most similar project without missing observations and copy the values of this project to fill in the holes. Least squares criterion for similarity measure. Set of variables used to define multidimensional space is called matching variables. Also, it does not impute a value if the distance between the matchign and the target case is too large. See \cite{myrt}.
+
+
+\section{Matrix Completion}
+
+\section{Testing Methods}
+
+\begin{itemize}
+	\item induce missingness
+\end{itemize}
+
+\section{Evaluation and Comparison Methods}
+Things to consider: ease of implementation, ease of programming, amount of collapsing, and cost of executing \cite{poni}.
+
+To investigate if MDT introduces bias, compare median, mean and SD from original to resulting MDT data. \cite{myrt} uses two-tailed, two-sample t-test to test if two distributions have equal mean, and 
+chi-square to compare SD of two distributions. Similar distribution would mean that the MDT does not introduce bias.
+
+To test the efficiency, and effect of each predictor variable, they used t-values (or alternatively p-values) and R2 for overall goodness of fit, and to confirm that models converge. R2 should be used with similar sample sizes.
+
+Accuracy of model: Mean Magnitude of Relative Error (MMRE) 
+
+\section*{Dealing with Unreliable Data}
+During data screening task, to help decide if it is a wild value or not \cite{myrt}:
+\begin{itemize}
+	\item Residual analysis
+	\item Outlier detection
+\end{itemize}
+\section{Alter Data}
+\bibliographystyle{plain}
+\bibliography{methodsToCompareNotes}
+
+\end{document}
