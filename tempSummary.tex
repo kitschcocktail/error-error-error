@@ -1,0 +1,548 @@
+\section{Experiment: The CommerzBank dataset}
+In order to solve deep architectures training problems, a greedy pre-training algorithm is used,which in practice works as a regularization mechanism, preparing the weights of the network so that the gradient descent reaches a better generalization result.
+The network is formed by stacking RBMs where the input layer is formed by Gaussian RBMs, and
+deeper layers bernouilli-bernouilli RBMs. The top layer of the network is a linear output layer, with linear activation. During the pre-training phase, several RBMs are trained to each to model the features. Once all layers have been pre-trained, the second supervised phase uses gradient descent for fine-tuning. Finally, an output layer is added and the whole DBN is trained to solve a forecasting task.
+
+The data used for this experiment is a set of sensor recorded root and external air temperatures of the Commerzbank Arena soccer stadium. The data was collected during two periods: summer (no heating or cooling required), and autumn and winter (heating and cooling required). The following experiment was run on the summer period dataset to forecast 36 values (6 hours) of future temperatures.
+
+
+\subsection{Temperature predictions}
+Analogously to the digit classification problem, we wanted to test the effect of corrupted data on temperature predictions. In the same way in which the digit image vectors were corrupted, randomly chosen values of the input vectors were masked (set to 0) determined by a set percentage and length. To simulate sensor failure, corruption was applied on the raw data, before the data formatting and normalization.
+
+\cite{Schmidt} show there to be an effect of air temperature on root tempertaure, and a cross-correlation analysis confirms a delay of 32 measurements (5 hours 20 minutes). With the root and air temperatures as features, the data is formatted such that the input vector is a concatenation of $\Delta$ root temperature, root temperature at $t=0$ ($ref\_temp$) and $\Delta$ (air temperature + delay). The input vector is normalized to zero-mean and unit variance in order to be properly modelled by the Gaussian RBM. The predicted temperatures are the denormalized network output plus the $ref\_temp$.
+
+
+The model was trained with a configuration of 3 hidden layers, 100 $\leftrightarrow$ 100 $\leftrightarrow$ 50, using a history of 6 hours (36 measurements) of root temperature, and 11 hours 20 minutes (68 measurements) of air temperature. The test dataset contains 3546 formatted input vectors and the errors and $\mathcal{F}$ are recorded for the control set, where the $\mathcal{F}$ of the whole network is the total of the $\mathcal{F}(v)$ for Gaussian-Bournouilli $v$ of the first layer, and the binary $v$ of the other two middle layers.
+
+
+% control set table
+\begin{table}
+	\begin{center}
+		\pgfplotstabletypeset[
+			col sep=comma,
+			string type,
+			every head row/.style={before row=\hline,
+				after row=\hline
+			},
+			every last row/.style={after row=\hline},
+			columns/pc/.style={column name={\% corruption}, column type={|c}},
+			columns/Fmean/.style={column name={mean $\mathcal{F}$}, column type={|r}},
+			columns/MAEmean/.style={column name={mean MAE}, column type={|c}},
+			columns/MSEmean/.style={column name={mean MSE}, column type={|c|}},
+			]{\tempsfolder /errfe_stats_0n.csv}
+	\end{center}
+	\caption{$\mathcal{F}$ mean, mean MAEs and mean MSEs as data masking is increased.}
+	\label{table:tcontrol}
+\end{table}
+
+
+\begin{figure}
+	\begin{center}
+		\subfigure[Free energy]{
+			\includegraphics[width=0.7\textwidth]{\tempsfolder /FE_boxplots0n0c}}
+		\subfigure[MAEs]{
+			\includegraphics[width=0.46\textwidth]{\tempsfolder /MAE_boxplots0n0c}}
+		\subfigure[MSEs]{
+			\includegraphics[width=0.46\textwidth]{\tempsfolder /MSE_boxplots0n0c}}
+	\end{center}
+	\caption{Boxplots}
+\end{figure}
+
+\subsection{Generation}
+
+This experiment is carried out with the same intention as the MNIST experiment where we look to the $\mathcal{F}$ to alert us when input data in unreliable. The $\mathcal{F}$ range is distinct from that of the MNIST DBN, so a new threshold is chosen for this network, again as the maximum value of the control set. For the reconstruction of the input however, the method for the temperature data differs from the MNIST data.
+
+First, the sleep phase cannot be paralleled to that of the MNIST DBN, since it has not been trained as a classifier, but as a regressor, and there is no supplied class to be clamped for generation. Instead, the output of predicted temperatures is formatted to act as a label. When the \textit{re}-regression is triggered, it is executed $n$ times, and both the top layer of the wake phase and the 'label' are stored. They are then averaged, and sent through the sleep phase, where constrastive divergence is initiliazed with the averaged top-layer, and looped with this clamped 'label.'  
+
+We use two methods for the input reconstruction. The corrupted input vector $x_{corr}$ and generated input $x_{gen}$ are not mixed in the same way the MNIST input vectors were. As the corrupted input vector has values set to 0, a mix in this case would not result in a probable input vector shape. The first method is complete replacement. When the flag is raised that the input vector is not reliable, it is replaced by $x_{gen}$. 
+
+The second is partial replacement. The missing values of $x_{corr}$ are imputed with the corresponding values of $x_{gen}$ to give $x_{imp}$.
+
+The new input vectors are then reclassified for evaluation of the reconstruction process. The regression results are presented in Table ~\ref{table:predstats}. The distance between the original, uncorrupted $x$ and the alternate inputs are presented in Table~\ref{table:genstats}.
+
+\begin{figure}
+	\begin{center}
+		\includegraphics[width=0.7\textwidth]{\tempsfolder /triFE_boxplots50n0c}
+	\end{center}
+\end{figure}
+
+{\newgeometry{left=1.6cm, right=1.6cm}
+\begin{table}
+	\begin{footnotesize}
+		\centering
+			\subtable[pc=0]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-6}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Reclassification}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEr}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /errfe_stats_0pc.csv}
+					}
+			\\
+			\subtable[c=10 minutes]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /with_rtr/errfe_stats_y0c.csv}}
+			\\
+			\subtable[c=1 hour]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /with_rtr/errfe_stats_y1c.csv}}
+		\end{footnotesize}
+\end{table}
+
+\begin{table}
+	\begin{footnotesize}
+		\centering
+			\subtable[c=2 hours]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /with_rtr/errfe_stats_y2c.csv}}
+			\\
+			\subtable[c=3 hours]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder  /with_rtr/errfe_stats_y3c.csv}}
+			\subtable[c=4 hours]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /with_rtr/errfe_stats_y4c.csv}}
+		\caption{Prediction stats with rtr}
+		\label{table:predstats}
+	\end{footnotesize}
+\end{table}
+}
+
+{\newgeometry{left=1.6cm, right=1.6cm}
+\begin{table}
+	\begin{footnotesize}
+		\centering
+			\subtable[c=10 minutes]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /errfe_stats_y0c.csv}}
+			\\
+			\subtable[c=1 hour]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /errfe_stats_y1c.csv}}
+		\end{footnotesize}
+\end{table}
+
+\begin{table}
+	\begin{footnotesize}
+		\centering
+			\subtable[c=2 hours]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /errfe_stats_y2c.csv}}
+			\\
+			\subtable[c=3 hours]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /errfe_stats_y3c.csv}}
+			\subtable[c=4 hours]{
+				\pgfplotstabletypeset[
+					col sep=comma,
+					string type,
+					every head row/.style={%
+						before row={\cline{3-8}
+							\multicolumn{2}{c|}{ } & \multicolumn{2}{c||}{Reclassification} & \multicolumn{2}{c||}{Generation} & \multicolumn{2}{c|}{Imputation}\\
+						\hline},
+						after row=\hline
+					},
+					every first row/.style={
+						before row={\rowcolor[gray]{0.9}
+						\hline},
+						after row=\hline,
+					},
+					every nth row={4}{%
+						before row={\hline
+						\rowcolor[gray]{0.9}
+						},
+						after row=\hline,
+					},
+					every last row/.style={after row=\hline},
+					columns/pc/.style={column name=noise \%, column type={|c}},
+					columns/n/.style={column name=n, column type={|r}},
+					columns/{FEcorr}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEcorr}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEgen}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEgen}/.style={column name={MAE}, column type={|c|}},
+					columns/{FEimp}/.style={column name={mean $\mathcal{F}$}, column type={|c}},
+					columns/{MAEimp}/.style={column name={MAE}, column type={|c|}},
+					]{\tempsfolder /errfe_stats_y4c.csv}}
+		\caption{Prediction stats without rtr}
+		\label{table:predstats}
+	\end{footnotesize}
+\end{table}
+}
+
+\begin{table}
+	\begin{center}
+		\subtable[c=10 minutes]{
+			\pgfplotstabletypeset[
+				col sep=comma,
+				string type,
+				every head row/.style={%
+					before row={\cline{3-5}
+						\multicolumn{2}{c|}{ } & \multicolumn{3}{c||}{average MAEs}\\
+					\hline},
+					after row=\hline
+				},
+				every nth row={3}{%
+					before row={\hline
+					},
+				},
+				every last row/.style={after row=\hline},
+				columns/pc/.style={column name=noise \%, column type={|c}},
+				columns/n/.style={column name=n, column type={|c}},
+				columns/{MAEcorrx}/.style={column name=xcorr vs. x, column type={|c|}},
+				columns/{MAEgenx}/.style={column name=xgen vs. x, column type={|c|}},
+				columns/{MAEimpx}/.style={column name=ximp vs. x, column type={|c|}},
+				]{\tempsfolder /err_stats_x1c.csv}}
+		\subtable[c=1 hour]{
+			\pgfplotstabletypeset[
+				col sep=comma,
+				string type,
+				every head row/.style={%
+					before row={\cline{3-5}
+						\multicolumn{2}{c|}{ } & \multicolumn{3}{c||}{average MAEs}\\
+					\hline},
+					after row=\hline
+				},
+				every nth row={3}{%
+					before row={\hline
+					},
+				},
+				every last row/.style={after row=\hline},
+				columns/pc/.style={column name=noise \%, column type={|c}},
+				columns/n/.style={column name=n, column type={|c}},
+				columns/{MAEcorrx}/.style={column name=xcorr vs. x, column type={|c|}},
+				columns/{MAEgenx}/.style={column name=xgen vs. x, column type={|c|}},
+				columns/{MAEimpx}/.style={column name=ximp vs. x, column type={|c|}},
+				]{\tempsfolder /err_stats_x1c.csv}}
+		\subtable[c=2 hours]{
+			\pgfplotstabletypeset[
+				col sep=comma,
+				string type,
+				every head row/.style={%
+					before row=\hline,
+					after row=\hline
+				},
+				every nth row={3}{%
+					before row={\hline
+					},
+				},
+				every last row/.style={after row=\hline},
+				columns/pc/.style={column name=noise \%, column type={|c}},
+				columns/n/.style={column name=n, column type={|c}},
+				columns/{MAEgenx}/.style={column name=MAE gen vs. x, column type={|c|}},
+				columns/{MAEgenx2}/.style={column name=MAE gen vs. imp, column type={|c|}},
+				]{\tempsfolder /err_stats_x2c.csv}}
+		\subtable[c=3 hours]{
+			\pgfplotstabletypeset[
+				col sep=comma,
+				string type,
+				every head row/.style={%
+					before row=\hline,
+					after row=\hline
+				},
+				every nth row={3}{%
+					before row={\hline
+					},
+				},
+				every last row/.style={after row=\hline},
+				columns/pc/.style={column name=noise \%, column type={|c}},
+				columns/n/.style={column name=n, column type={|c}},
+				columns/{MAEgenx}/.style={column name=MAE gen vs. x, column type={|c|}},
+				columns/{MAEgenx2}/.style={column name=MAE gen vs. imp, column type={|c|}},
+				]{\tempsfolder /err_stats_x3c.csv}}
+		\subtable[c=4 hours]{
+			\pgfplotstabletypeset[
+				col sep=comma,
+				string type,
+				every head row/.style={%
+					before row=\hline,
+					after row=\hline
+				},
+				every nth row={3}{%
+					before row={\hline
+					},
+				},
+				every last row/.style={after row=\hline},
+				columns/pc/.style={column name=noise \%, column type={|c}},
+				columns/n/.style={column name=n, column type={|c}},
+				columns/{MAEgenx}/.style={column name=MAE gen vs. x, column type={|c|}},
+				columns/{MAEgenx2}/.style={column name=MAE gen vs. imp, column type={|c|}},
+				]{\tempsfolder /err_stats_x4c.csv}}
+		\caption{Generation stats}
+		\label{table:genstats}
+	\end{center}
+\end{table}
+
